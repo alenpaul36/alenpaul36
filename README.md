@@ -1,3 +1,3 @@
 ### Hi there 👋
-###🌱I’m currently learning Cybersecurity
+🌱I’m currently learning Cybersecurity
 
