@@ -6,7 +6,7 @@
 
 
 
-- ⚡ Fun fact: I'm proabably that movie-buff guy.
+- ⚡ Fun fact: Cinephilia
 
 ---
 
