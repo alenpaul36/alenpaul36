@@ -1,4 +1,4 @@
-### Hey there :)
+## Hey there :)
 ---
 
 - ✨ I’m a member at [@cognizance](https://github.com/cognizance-amrita), a student club at Amrita School of Engineering Chennai
@@ -9,7 +9,7 @@
 
 ---
 
-### Skills that I am working on
+## Skills that I am working on
 
 [<img align ="left" src="https://user-images.githubusercontent.com/674621/71187801-14e60a80-2280-11ea-94c9-e56576f76baf.png" alt="drawing" width="26"/>](https://code.visualstudio.com/) 
 
@@ -24,7 +24,7 @@
 <br>
 
 ---
-### Connect @
+## Connect@
 
 [<img align ="left" alt="C++" width ="44" src ="https://cliply.co/wp-content/uploads/2021/02/372102050_LINKEDIN_ICON_TRANSPARENT_1080.gif">](https://www.linkedin.com/in/alen-paul2201/)
 
