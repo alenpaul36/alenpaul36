@@ -1,5 +1,4 @@
 ## Hey there :)
----
 
 - 🌱 I’m currently learning on solving [CTF challenges](https://picoctf.org/)  and [Ethical Hacking](https://www.unschool.in/courses/ethical-hacking/)
 
