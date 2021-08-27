@@ -10,7 +10,7 @@
 
 ---
 
-### Few Technologies that I'm currently working with
+### Some Technologies that I'm currently working with
 
 [<img align ="left" src="https://user-images.githubusercontent.com/674621/71187801-14e60a80-2280-11ea-94c9-e56576f76baf.png" alt="drawing" width="26"/>](https://code.visualstudio.com/) 
 
