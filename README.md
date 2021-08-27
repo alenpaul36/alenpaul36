@@ -6,7 +6,7 @@
 
 
 
-- ⚡ Fun fact: Cinephilia
+- ⚡ Fun fact: I'm a Cinephilia
 
 ---
 
