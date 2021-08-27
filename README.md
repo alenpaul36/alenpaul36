@@ -27,7 +27,7 @@
 
 
 ---
-![Alen Paul's GitHub stats](https://github-readme-stats.vercel.app/api?username=alenpaul36&show_icons=true&theme=dark)
+![Alen Paul's GitHub stats](https://github-readme-stats.vercel.app/api?username=alenpaul36&hide=contribs,prs&show_icons=true&theme=dark)
 
 ---
 ### Connect with me @
