@@ -30,7 +30,7 @@
 <img src="https://github-readme-stats.vercel.app/api?username=alenpaul36&show_icons=true&include_all_commits=true&count_private=true&hide_border=true&theme=dark" />
 
 ---
-## Connect@
+### Connect with me @
 
 [<img align ="left" alt="C++" width ="44" src ="https://cliply.co/wp-content/uploads/2021/02/372102050_LINKEDIN_ICON_TRANSPARENT_1080.gif">](https://www.linkedin.com/in/alen-paul2201/)
 
