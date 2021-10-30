@@ -1,6 +1,6 @@
 ### Hey there :)
 
-- 🌱 I’m currently learning on solving [CTF challenges](https://picoctf.org/)  and Ethical Hacking
+- 🌱 I’m currently learning on solving [CTF challenges](https://picoctf.org/)  and Network +
 
 
 
