@@ -1,39 +1,60 @@
-### Hey there :)
+# 👋 Hi, I'm Alen Paul
+### Aspriing Cloud Security Engineer | Cyber-Security Audit | Security Researcher
 
-- 🌱 I’m currently learning on solving [CTF challenges](https://picoctf.org/)  and Network +
+<p align="left">
+    <img src="https://komarev.com/ghpvc/?username=yourusername&label=Profile%20views&color=0e75b6&style=flat" alt="Profile Views" />
+</p>
 
+## 🛡️ About Me
 
+- 🔭 I'm currently working in **Protiviti as a Technology Audit Consultant**
+- 🌱 I'm deepening my expertise in **Cloud Security & Pentesting**
+- 👯 Open to collaborate on **Cloud Security & Pentesting Projects**
+- 💬 Ask me about **AWS, Security Best Practices,**
+- 📫 Reach me at: **infosec0210@gmail.com**
 
+## 🔧 Technologies & Tools
 
+![AWS](https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
 
-- ⚡ Fun fact: I'm a Cinephilia
+### 🛡️ Security Tools & Frameworks
+- Cloud Security Posture Management (CSPM)
+- Security Information and Event Management (SIEM)
+- Infrastructure as Code (IaC) Security
+- Identity and Access Management (IAM)
+- Compliance Frameworks (SOC2, ISO27001, CIS)
+
+## 📊 GitHub Stats
+
+<p align="center">
+    <img src="https://github-readme-stats.vercel.app/api?username=yourusername&show_icons=true&theme=dark" alt="GitHub Stats" />
+</p>
+
+<p align="center">
+    <img src="https://github-readme-streak-stats.herokuapp.com/?user=yourusername&theme=dark" alt="GitHub Streak" />
+</p>
+
+## 🏆 Certifications
+- AWS Certified Cloud Practioner - KodeKloud
+- ISC2 Certified in Cyber-Security
+- Aviatrix Certified Engineer - Mutli Cloud Network Associate
+
+## 📈 Recent Projects
+
+### 🔐 Cloud Security Framework
+A comprehensive security framework for multi-cloud environments implementing security best practices and compliance requirements.
+- [Repository Link]
+
+### 🛡️ Security Automation Suite
+Automated security scanning and remediation tools for cloud infrastructure.
+- [Repository Link]
+
+## 📫 Connect with Me
+
+[![LinkedIn](https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/yourusername)
+[![Twitter](https://img.shields.io/badge/Twitter-%231DA1F2.svg?style=for-the-badge&logo=Twitter&logoColor=white)](https://twitter.com/yourusername)
+[![Medium](https://img.shields.io/badge/Medium-12100E?style=for-the-badge&logo=medium&logoColor=white)](https://medium.com/@yourusername)
 
 ---
-
-### Tools and Languages
-
-[<img align ="left" src="https://user-images.githubusercontent.com/674621/71187801-14e60a80-2280-11ea-94c9-e56576f76baf.png" alt="drawing" width="26"/>](https://code.visualstudio.com/) 
-
-[<img align="left" alt="HTML5" width="27" src="https://raw.githubusercontent.com/github/explore/80688e429a7d4ef2fca1e82350fe8e3517d3494d/topics/html/html.png">](https://en.wikipedia.org/wiki/HTML5)
-
-[<img align ="left" alt="Markdown" width ="27" src ="https://raw.githubusercontent.com/github/explore/80688e429a7d4ef2fca1e82350fe8e3517d3494d/topics/markdown/markdown.png">](https://www.markdownguide.org/)
-
-[<img align ="left" alt="Python" width ="27" src ="https://raw.githubusercontent.com/github/explore/80688e429a7d4ef2fca1e82350fe8e3517d3494d/topics/python/python.png">](https://www.python.org/)
-
-[<img align ="left" alt="C++" width ="27" src ="https://raw.githubusercontent.com/github/explore/80688e429a7d4ef2fca1e82350fe8e3517d3494d/topics/cpp/cpp.png">](https://www.w3schools.com/CPP/default.asp)
-
-<br>
-
-
-
----
-![Alen Paul's GitHub stats](https://github-readme-stats.vercel.app/api?username=alenpaul36&hide=contribs,prs&show_icons=true&theme=dark)
-
----
-### Connect with me @
-
-[<img align ="left" alt="C++" width ="44" src ="https://cliply.co/wp-content/uploads/2021/02/372102050_LINKEDIN_ICON_TRANSPARENT_1080.gif">](https://www.linkedin.com/in/alen-paul2201/)
-
-<br>
-
-
+⭐️ From [alenpaul36](https://github.com/alenpaul36)
