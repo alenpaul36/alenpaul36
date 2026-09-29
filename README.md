@@ -33,5 +33,13 @@ Most of my work is in the UAE, Saudi Arabia and India.
 ### Toolbox
 
 <p align="left">
-  <img src="https://skillicons.dev/icons?i=aws,azure,linux,python,bash&theme=dark" height="36" alt="AWS, Azure, Linux, Python, Bash" />
+  <a href="https://aws.amazon.com/" title="AWS"><img src="https://skillicons.dev/icons?i=aws&theme=dark" width="40" alt="AWS" /></a>&nbsp;
+  <a href="https://azure.microsoft.com/" title="Microsoft Azure"><img src="https://skillicons.dev/icons?i=azure&theme=dark" width="40" alt="Azure" /></a>&nbsp;
+  <a href="https://www.kernel.org/" title="Linux"><img src="https://skillicons.dev/icons?i=linux&theme=dark" width="40" alt="Linux" /></a>&nbsp;
+  <a href="https://www.kali.org/" title="Kali Linux"><img src="https://skillicons.dev/icons?i=kali&theme=dark" width="40" alt="Kali Linux" /></a>&nbsp;
+  <a href="https://portswigger.net/burp" title="Burp Suite"><img src="./assets/tool-burpsuite.svg" width="40" alt="Burp Suite" /></a>&nbsp;
+  <a href="https://www.metasploit.com/" title="Metasploit"><img src="./assets/tool-metasploit.svg" width="40" alt="Metasploit" /></a>&nbsp;
+  <a href="https://www.wireshark.org/" title="Wireshark"><img src="./assets/tool-wireshark.svg" width="40" alt="Wireshark" /></a>&nbsp;
+  <a href="https://www.python.org/" title="Python"><img src="https://skillicons.dev/icons?i=python&theme=dark" width="40" alt="Python" /></a>&nbsp;
+  <a href="https://www.gnu.org/software/bash/" title="Bash"><img src="https://skillicons.dev/icons?i=bash&theme=dark" width="40" alt="Bash" /></a>
 </p>
