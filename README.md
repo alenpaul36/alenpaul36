@@ -92,7 +92,7 @@ Amrita Vishwa Vidyapeetham, Chennai · 2020 – 2024
 coursework: cloud security, VAPT, networking, secure systems engineering
 ```
 
-### `alen@kali:~$ git log --graph --stat`
+### `alen@kali:~$ git log --graph --all | render --3d`
 
 <p align="center">
   <picture>
@@ -100,11 +100,6 @@ coursework: cloud security, VAPT, networking, secure systems engineering
     <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/alenpaul36/alenpaul36/output/profile-green-animate.svg" />
     <img alt="3D contribution graph" src="https://raw.githubusercontent.com/alenpaul36/alenpaul36/output/profile-green-animate.svg" />
   </picture>
-</p>
-
-<p align="center">
-  <img height="160" src="https://github-readme-stats.vercel.app/api?username=alenpaul36&show_icons=true&hide_border=true&count_private=true&bg_color=0d1117&title_color=3fb950&icon_color=58a6ff&text_color=c9d1d9" alt="GitHub stats" />
-  <img height="160" src="https://github-readme-streak-stats.herokuapp.com/?user=alenpaul36&hide_border=true&background=0d1117&ring=3fb950&fire=3fb950&currStreakLabel=3fb950&sideLabels=c9d1d9&currStreakNum=c9d1d9&sideNums=c9d1d9&dates=8b949e&stroke=30363d" alt="GitHub streak" />
 </p>
 
 ### `alen@kali:~$ ./connect.sh`
