@@ -204,7 +204,24 @@ body.dragon-up .toast{bottom:auto;top:calc(env(safe-area-inset-top) + 46px)}
 .signoff{margin-top:20px;font-weight:700;font-style:italic;font-size:17px;color:#5a3b6e}
 .sig{font-family:var(--script);font-size:34px;color:var(--pink-dk);line-height:1.4;margin-top:2px}
 .theend{margin-top:12px;font-family:var(--head);font-size:15px;letter-spacing:.2em;color:var(--purple)}
-#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:85}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.notebox{margin:22px auto 0;max-width:24em;text-align:left;background:#fff;border:3.5px solid var(--ink);border-radius:20px;box-shadow:5px 5px 0 var(--ink);padding:16px 16px 14px;position:relative;z-index:86}
+.notebox h2{font-family:var(--script);font-weight:400;font-size:24px;color:var(--purple);text-align:center;line-height:1.3}
+.notebox p.sub{font-weight:700;font-size:14.5px;color:#5a3b6e;text-align:center;margin:2px 0 10px}
+.notebox label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.notebox textarea{width:100%;min-height:110px;resize:vertical;font:700 16px/1.4 var(--body);color:var(--ink);background:var(--cream);
+  border:2.5px solid var(--ink);border-radius:14px;padding:10px 12px;outline:none}
+.notebox textarea:focus{border-color:var(--pink);box-shadow:0 0 0 3px rgba(255,79,163,.25)}
+.notebox .send{display:block;margin:12px auto 0;font-family:var(--head);font-size:19px;letter-spacing:.04em;color:#fff;
+  background:linear-gradient(180deg,#5fe3f0,var(--cyan) 55%,#1fb3c6);padding:11px 24px 8px;border:3px solid var(--ink);border-radius:999px;
+  box-shadow:4px 4px 0 var(--ink);text-shadow:2px 2px 0 var(--ink);cursor:pointer;touch-action:manipulation}
+.notebox .send:active{box-shadow:1px 1px 0 var(--ink);transform:translate(3px,3px)}
+.notebox .send[disabled]{opacity:.6;cursor:default}
+.notebox .status{min-height:1.3em;margin-top:8px;text-align:center;font-weight:800;font-size:15px;color:var(--pink-dk)}
+.notebox.sent form{display:none}
+.notebox .done{display:none;text-align:center;font-weight:800;font-size:16.5px;color:var(--ink);padding:6px 0 2px}
+.notebox.sent .done{display:block}
+.hp{display:none}
 
 @media (max-width:420px){
   .card{padding:36px 20px 26px;box-shadow:7px 7px 0 var(--ink),0 30px 60px -10px rgba(20,0,40,.55)}
@@ -346,6 +363,7 @@ body.dragon-up .toast{bottom:auto;top:calc(env(safe-area-inset-top) + 46px)}
 
 <!-- Happily ever after -->
 <div class="overlay" id="overlay" aria-hidden="true">
+  <canvas id="fx" aria-hidden="true" hidden></canvas>
   <main class="stage">
     <section class="card" id="card2" aria-labelledby="q2">
       <svg class="heartseal" id="seal" viewBox="0 0 100 100" aria-hidden="true">
@@ -366,10 +384,25 @@ body.dragon-up .toast{bottom:auto;top:calc(env(safe-area-inset-top) + 46px)}
       <p class="signoff">Yours, sincerely and expensively,</p>
       <p class="sig">Your Sugar Daddy</p>
       <p class="theend">The End &middot; or just the beginning</p>
+
+      <div class="notebox" id="notebox">
+        <h2>Leave him a note</h2>
+        <p class="sub">Write anything you like. The dragon will deliver it.</p>
+        <form name="note" method="POST" data-netlify="true" netlify-honeypot="bot-field" id="noteForm">
+          <input type="hidden" name="form-name" value="note">
+          <input type="hidden" name="answer" value="Yes">
+          <input type="hidden" name="dodges" value="0">
+          <p class="hp"><label>Leave this empty <input name="bot-field"></label></p>
+          <label for="message">Your note</label>
+          <textarea id="message" name="message" maxlength="2000" required placeholder="Dear Sugar Daddy..."></textarea>
+          <button class="send" type="submit" id="sendBtn">Send note</button>
+          <p class="status" id="noteStatus" aria-live="polite"></p>
+        </form>
+        <p class="done" id="noteDone">Delivered! He'll read it with a very big smile.</p>
+      </div>
     </section>
   </main>
 </div>
-<canvas id="fx" aria-hidden="true" hidden></canvas>
 
 <script>
 (function(){
@@ -548,6 +581,29 @@ body.dragon-up .toast{bottom:auto;top:calc(env(safe-area-inset-top) + 46px)}
   }
   var dragonInterval = setInterval(summonDragon, 9000);
   setTimeout(summonDragon, 3200);
+
+  /* ---------- note to Gmail (via Netlify Forms) ---------- */
+  function sendForm(fields){
+    var body = Object.keys(fields).map(function(k){ return encodeURIComponent(k) + "=" + encodeURIComponent(fields[k]); }).join("&");
+    return fetch("/", { method:"POST", headers:{ "Content-Type":"application/x-www-form-urlencoded" }, body: body })
+      .then(function(r){ if (!r.ok) throw new Error(r.status); return r; });
+  }
+  var noteForm = $("noteForm");
+  noteForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var msg = $("message").value.trim(), st = $("noteStatus"), btn = $("sendBtn");
+    if (!msg){ st.textContent = "Write a little something first."; return; }
+    btn.disabled = true; st.textContent = "Dragon mail on its way...";
+    sendForm({ "form-name":"note", "answer":"Yes", "dodges":String(dodges), "message":msg, "bot-field":noteForm.elements["bot-field"].value })
+      .then(function(){ $("notebox").classList.add("sent"); toast("Note delivered. He's blushing.", 3500); })
+      .catch(function(){ btn.disabled = false; st.textContent = "The dragon dropped it. Please try again."; });
+  });
+
+  yes.addEventListener("click", function(){
+    if (accepted) return;
+    // let him know she said yes, even before any note
+    sendForm({ "form-name":"note", "answer":"Yes", "dodges":String(dodges), "message":"(She clicked Yes! No note written yet.)" }).catch(function(){});
+  }, true);
 
   yes.addEventListener("click", function(){
     if (accepted) return;
