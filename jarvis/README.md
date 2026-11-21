@@ -52,6 +52,12 @@ Jarvis to be run as administrator.
 
 ## Run from source
 
+Easiest: double-click **Start Jarvis (Windows).bat**, or **Start Jarvis (Mac and Linux).command**
+(on a Mac, right-click → Open the first time). They install what Jarvis needs and open it.
+You need Python 3.10 or newer from python.org; on Windows tick "Add python.exe to PATH".
+
+Or by hand:
+
 ```bash
 pip install -r requirements.txt
 python jarvis_gui.py
