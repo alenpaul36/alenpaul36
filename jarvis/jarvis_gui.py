@@ -27,6 +27,7 @@ import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+from tkinter import font as tkfont
 
 import psutil
 
@@ -40,16 +41,19 @@ jarvis.USE_COLOR = False
 # Look and feel
 # --------------------------------------------------------------------------- #
 
-BG = "#0b1220"
-PANEL = "#111a2e"
-PANEL_2 = "#17223b"
-LINE = "#24314f"
-TEXT = "#e2e8f0"
-DIM = "#8b9ab4"
+# "Data terminal" style: true neutral darks, cards darker than the ground, colour only on data and
+# on selection. The accent is Jarvis's own cyan (the voice ring) instead of the style's blue.
+BG = "#171719"       # ground
+PANEL = "#131217"    # cards
+PANEL_2 = "#212023"  # raised: fields, selection, bar tracks
+LINE = "#222224"     # card edges and dividers
+CONTROL = "#3a3a3e"  # outlines of clickable things
+TEXT = "#f2f2f3"
+DIM = "#8a8c92"      # secondary text, 4.5:1 on the cards
 ACCENT = "#22d3ee"
-GREEN = "#22c55e"
-YELLOW = "#eab308"
-RED = "#ef4444"
+GREEN = "#44a282"
+YELLOW = "#d9a441"
+RED = "#e5566f"
 
 if sys.platform == "win32":
     FONT = "Segoe UI"
@@ -63,7 +67,7 @@ else:
 
 
 def level_color(pct: float) -> str:
-    return GREEN if pct < 70 else YELLOW if pct < 90 else RED
+    return TEXT if pct < 70 else YELLOW if pct < 90 else RED  # colour only when something needs attention
 
 
 def set_dpi_awareness() -> None:
@@ -78,46 +82,23 @@ def set_dpi_awareness() -> None:
 # Small building blocks
 # --------------------------------------------------------------------------- #
 
-class Gauge(tk.Canvas):
-    """A ring gauge showing a percentage."""
-
-    def __init__(self, master, title: str, size: int = 150):
-        super().__init__(master, width=size, height=size + 26, bg=PANEL, highlightthickness=0)
-        self.size, self.title = size, title
-        pad, w = 12, 12
-        self.create_oval(pad, pad, size - pad, size - pad, outline=LINE, width=w)
-        self.arc = self.create_arc(pad, pad, size - pad, size - pad, start=90, extent=0,
-                                   style="arc", outline=ACCENT, width=w)
-        self.value = self.create_text(size / 2, size / 2 - 6, text="--", fill=TEXT, font=(FONT, 20, "bold"))
-        self.sub = self.create_text(size / 2, size / 2 + 18, text="", fill=DIM, font=(FONT, 9))
-        self.create_text(size / 2, size + 12, text=title, fill=DIM, font=(FONT, 10, "bold"))
-
-    def set(self, pct: float | None, sub: str = "") -> None:
-        if pct is None:
-            self.itemconfigure(self.arc, extent=0)
-            self.itemconfigure(self.value, text="n/a")
-        else:
-            self.itemconfigure(self.arc, extent=-max(0.1, pct) * 3.6, outline=level_color(pct))
-            self.itemconfigure(self.value, text=f"{pct:.0f}%")
-        self.itemconfigure(self.sub, text=sub)
-
-
 def panel(master, **kw) -> tk.Frame:
     return tk.Frame(master, bg=PANEL, highlightbackground=LINE, highlightthickness=1, **kw)
 
 
-def label(master, text="", size=10, color=TEXT, bold=False, bg=None, **kw) -> tk.Label:
+def label(master, text="", size=10, color=TEXT, bold=False, bg=None, mono=False, **kw) -> tk.Label:
     return tk.Label(master, text=text, fg=color, bg=bg or master["bg"],
-                    font=(FONT, size, "bold" if bold else "normal"), **kw)
+                    font=(MONO if mono else FONT, size, "bold" if bold else "normal"), **kw)
 
 
-def button(master, text, command, kind="normal") -> tk.Button:
-    colors = {"normal": (PANEL_2, TEXT), "accent": (ACCENT, BG), "danger": ("#3b1620", "#fca5a5")}
-    bg, fg = colors[kind]
-    b = tk.Button(master, text=text, command=command, bg=bg, fg=fg, activebackground=LINE,
-                  activeforeground=TEXT, relief="flat", bd=0, padx=14, pady=7, cursor="hand2",
-                  font=(FONT, 10, "bold" if kind == "accent" else "normal"), highlightthickness=0)
-    return b
+def button(master, text, command, kind="normal") -> ttk.Button:
+    # ttk, not tk.Button: macOS ignores tk.Button colours. One primary (white) per screen.
+    style = {"normal": "TButton", "accent": "Primary.TButton", "danger": "Danger.TButton",
+             "small": "Small.TButton", "big": "Big.Primary.TButton"}[kind]
+    return ttk.Button(master, text=text, command=command, style=style, cursor="hand2")
+
+
+NUMERIC = {"PID", "CPU %", "Memory %", "Memory", "Sent", "Received", "Port", "Size"}
 
 
 def make_table(master, columns: list[tuple[str, int]], height=14) -> ttk.Treeview:
@@ -126,7 +107,9 @@ def make_table(master, columns: list[tuple[str, int]], height=14) -> ttk.Treevie
     tree = ttk.Treeview(frame, columns=[c for c, _ in columns], show="headings", height=height)
     for name, width in columns:
         tree.heading(name, text=name)
-        tree.column(name, width=width, anchor="w", stretch=name == columns[-1][0] or width > 200)
+        tree.column(name, width=width, anchor="e" if name in NUMERIC else "w",
+                    stretch=name == columns[-1][0] or width > 200)
+        tree.heading(name, anchor="e" if name in NUMERIC else "w")
     sb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=sb.set)
     tree.pack(side="left", fill="both", expand=True)
@@ -160,13 +143,33 @@ class QueueWriter:
 # --------------------------------------------------------------------------- #
 
 SETTINGS_FILE = Path.home() / ".jarvis.json"
-DEFAULT_SETTINGS = {"voice": voice.DEFAULT_VOICE, "address": "sir", "wake_word": False, "speak": True}
+def os_prefers_reduced_motion() -> bool:
+    with contextlib.suppress(Exception):
+        if sys.platform == "win32":
+            import ctypes
+
+            on = ctypes.c_bool()
+            ctypes.windll.user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(on), 0)  # SPI_GETCLIENTAREAANIMATION
+            return not on.value
+        if sys.platform == "darwin":
+            import subprocess
+
+            out = subprocess.run(["defaults", "read", "com.apple.universalaccess", "reduceMotion"],
+                                 capture_output=True, text=True, timeout=2).stdout
+            return out.strip() == "1"
+    return False
+
+
+DEFAULT_SETTINGS = {"voice": voice.DEFAULT_VOICE, "address": "sir", "wake_word": False, "speak": True,
+                    "reduce_motion": None}  # None: follow the operating system
 
 
 def load_settings() -> dict:
     settings = dict(DEFAULT_SETTINGS)
     with contextlib.suppress(OSError, ValueError):
         settings.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
+    if settings["reduce_motion"] is None:
+        settings["reduce_motion"] = os_prefers_reduced_motion()
     return settings
 
 
@@ -256,9 +259,10 @@ class JarvisApp(tk.Tk):
         self.speaker.on_state = lambda speaking: self.ui(
             lambda: self.set_state("speaking" if speaking else "idle"))
 
-        self.sidebar = tk.Frame(self, bg=PANEL, width=210)
+        self.sidebar = tk.Frame(self, bg=BG, width=210)
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
+        tk.Frame(self, bg=LINE, width=1).pack(side="left", fill="y")
         self.content = tk.Frame(self, bg=BG)
         self.content.pack(side="left", fill="both", expand=True, padx=18, pady=16)
 
@@ -266,7 +270,8 @@ class JarvisApp(tk.Tk):
         label(self.sidebar, "System manager", 9, DIM).pack(anchor="w", padx=20, pady=(0, 18))
 
         self.pages: dict[str, tk.Frame] = {}
-        self.nav: dict[str, tk.Button] = {}
+        self.nav: dict[str, tuple] = {}
+        nav_font = tkfont.Font(family=FONT, size=11)
         for name, builder in [
             ("Jarvis", self.build_hud),
             ("Dashboard", self.build_dashboard),
@@ -279,12 +284,12 @@ class JarvisApp(tk.Tk):
             page = tk.Frame(self.content, bg=BG)
             self.pages[name] = page
             builder(page)
-            b = tk.Button(self.sidebar, text="   " + name, anchor="w", relief="flat", bd=0, padx=10, pady=10,
-                          bg=PANEL, fg=DIM, activebackground=PANEL_2, activeforeground=TEXT,
-                          font=(FONT, 11), cursor="hand2", highlightthickness=0,
-                          command=lambda n=name: self.show(n))
-            b.pack(fill="x", padx=10, pady=1)
-            self.nav[name] = b
+            b = ttk.Button(self.sidebar, text=name, style="Nav.TButton", cursor="hand2",
+                           command=lambda n=name: self.show(n))
+            b.pack(fill="x", padx=8)
+            line = tk.Frame(self.sidebar, bg=BG, height=1, width=nav_font.measure(name))
+            line.pack(anchor="w", padx=20, pady=(0, 4))
+            self.nav[name] = (b, line)
 
         u = platform.uname()
         label(self.sidebar, f"{u.node}\n{u.system} {u.release}"[:60], 8, DIM, justify="left",
@@ -307,10 +312,36 @@ class JarvisApp(tk.Tk):
         s.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT,
                     rowheight=26, borderwidth=0, font=(FONT, 10), bordercolor=PANEL,
                     lightcolor=PANEL, darkcolor=PANEL)
-        s.configure("Treeview.Heading", background=PANEL_2, foreground=DIM, relief="flat",
-                    font=(FONT, 9, "bold"), padding=6)
-        s.map("Treeview", background=[("selected", "#164e63")], foreground=[("selected", TEXT)])
-        s.map("Treeview.Heading", background=[("active", LINE)])
+        s.configure("Treeview.Heading", background=PANEL, foreground=DIM, relief="flat",
+                    font=(FONT, 9), padding=(6, 8), borderwidth=0)  # no header band
+        s.map("Treeview", background=[("selected", PANEL_2)], foreground=[("selected", TEXT)])
+        s.map("Treeview.Heading", background=[("active", PANEL)])
+        # buttons: outlined secondary, inverted (white) primary, pale-tint danger
+        s.configure("TButton", background=PANEL, foreground=TEXT, bordercolor=CONTROL, lightcolor=PANEL,
+                    darkcolor=PANEL, focuscolor=ACCENT, relief="solid", borderwidth=1, padding=(14, 7),
+                    font=(FONT, 10), width=0)  # width=0: size to the label
+        s.map("TButton", background=[("pressed", PANEL_2), ("active", PANEL_2)],
+              bordercolor=[("focus", ACCENT), ("active", "#5a5a60")])
+        s.configure("Primary.TButton", background=TEXT, foreground="#111111", bordercolor=TEXT,
+                    lightcolor=TEXT, darkcolor=TEXT, font=(FONT, 10, "bold"))
+        s.map("Primary.TButton", background=[("pressed", "#c8c8cc"), ("active", "#dcdce0")],
+              bordercolor=[("focus", ACCENT)])
+        s.configure("Big.Primary.TButton", padding=(24, 11), font=(FONT, 12, "bold"))
+        s.configure("Danger.TButton", background="#2c1a20", foreground=RED, bordercolor="#2c1a20",
+                    lightcolor="#2c1a20", darkcolor="#2c1a20")
+        s.map("Danger.TButton", background=[("active", "#3a2029")], bordercolor=[("focus", ACCENT)])
+        s.configure("Small.TButton", padding=(10, 4), font=(FONT, 9), width=0)
+        # sidebar: the active page is brighter text plus a 1px accent line as wide as its label
+        s.configure("Nav.TButton", background=BG, foreground=DIM, bordercolor=BG, lightcolor=BG, darkcolor=BG,
+                    focuscolor=ACCENT, relief="flat", borderwidth=0, padding=(12, 8, 12, 6), font=(FONT, 11),
+                    anchor="w")
+        s.map("Nav.TButton", background=[("active", BG)], foreground=[("active", TEXT)],
+              bordercolor=[("focus", CONTROL)])
+        s.configure("Active.Nav.TButton", foreground=TEXT)
+        s.configure("TCheckbutton", background=BG, foreground=DIM, focuscolor=ACCENT, font=(FONT, 10),
+                    indicatorbackground=PANEL_2, indicatorforeground=TEXT, indicatorrelief="flat")
+        s.map("TCheckbutton", background=[("active", BG)], foreground=[("active", TEXT)],
+              indicatorbackground=[("selected", PANEL_2)])
         for name in ("TScrollbar", "Vertical.TScrollbar"):
             s.configure(name, background=LINE, troughcolor=PANEL, bordercolor=PANEL, arrowcolor=DIM,
                         lightcolor=LINE, darkcolor=LINE, gripcount=0, arrowsize=12)
@@ -318,6 +349,9 @@ class JarvisApp(tk.Tk):
         s.configure("TCombobox", fieldbackground=PANEL_2, background=PANEL_2, foreground=TEXT,
                     arrowcolor=DIM, bordercolor=LINE, lightcolor=PANEL_2, darkcolor=PANEL_2)
         s.map("TCombobox", fieldbackground=[("readonly", PANEL_2)], foreground=[("readonly", TEXT)])
+        for opt, val in (("background", PANEL_2), ("foreground", TEXT), ("selectBackground", CONTROL),
+                         ("selectForeground", TEXT)):
+            self.option_add(f"*TCombobox*Listbox.{opt}", val)
 
     def ui(self, fn) -> None:
         """Schedule fn on the Tk thread (safe to call from workers)."""
@@ -366,9 +400,11 @@ class JarvisApp(tk.Tk):
     def show(self, name: str) -> None:
         for n, p in self.pages.items():
             p.pack_forget()
-            self.nav[n].configure(bg=PANEL, fg=DIM)
+            self.nav[n][0].configure(style="Nav.TButton")
+            self.nav[n][1].configure(bg=BG)
         self.pages[name].pack(fill="both", expand=True)
-        self.nav[name].configure(bg=PANEL_2, fg=ACCENT)
+        self.nav[name][0].configure(style="Active.Nav.TButton")
+        self.nav[name][1].configure(bg=ACCENT)
         self.current = name
         if name == "Processes":
             self.refresh_processes()
@@ -408,8 +444,7 @@ class JarvisApp(tk.Tk):
 
         controls = tk.Frame(page, bg=BG)
         controls.pack()
-        self.talk_btn = button(controls, "🎤  Talk to Jarvis", self.talk, "accent")
-        self.talk_btn.configure(font=(FONT, 12, "bold"), padx=22, pady=10)
+        self.talk_btn = button(controls, "Talk to Jarvis", self.talk, "big")
         self.talk_btn.pack(side="left", padx=(0, 14))
         self.typed = tk.StringVar()
         e = tk.Entry(controls, textvariable=self.typed, bg=PANEL_2, fg=TEXT, insertbackground=ACCENT, relief="flat",
@@ -430,13 +465,12 @@ class JarvisApp(tk.Tk):
                 if command:
                     command()
 
-            tk.Checkbutton(opts, text=text, variable=var, command=changed, bg=BG, fg=DIM, selectcolor=PANEL_2,
-                           activebackground=BG, activeforeground=TEXT, font=(FONT, 10), highlightthickness=0,
-                           bd=0).pack(side="left", padx=10)
+            ttk.Checkbutton(opts, text=text, variable=var, command=changed, cursor="hand2").pack(side="left", padx=10)
             return var
 
-        self.wake_var = check('Always listen for "Jarvis"', "wake_word", self._wake_changed)
+        self.wake_var = check('Always listen for “Jarvis”', "wake_word", self._wake_changed)
         check("Speak replies", "speak")
+        check("Reduce motion", "reduce_motion")
         label(opts, "Voice", 10, DIM).pack(side="left", padx=(14, 4))
         names = list(voice.BRITISH_VOICES)
         current = next((n for n, v in voice.BRITISH_VOICES.items() if v == self.settings["voice"]), names[0])
@@ -532,13 +566,15 @@ class JarvisApp(tk.Tk):
         active = it and self.current == "Jarvis" and self.wm_state() != "iconic"
         if active:
             speed = {"idle": 1.0, "listening": 2.6, "thinking": 4.5, "speaking": 1.6}.get(self.state, 1)
-            self.angle += speed
+            if not self.settings["reduce_motion"]:  # the core still follows the voice either way
+                self.angle += speed
             self.level += (self.level_target - self.level) * 0.35
             cx, cy, R = self._hud_geom
             for ids, segs, sp, _ in it["rings"]:
                 for i, item in enumerate(ids):
                     self.hud.itemconfigure(item, start=(self.angle * sp + i * 360 / segs) % 360)
-            breathe = 0.04 * math.sin(time.time() * 2.2) if self.state == "idle" else 0
+            idle = self.state == "idle" and not self.settings["reduce_motion"]
+            breathe = 0.04 * math.sin(time.time() * 2.2) if idle else 0
             r = R * (0.30 + breathe + 0.14 * self.level)
             for k, g in enumerate(it["glow"]):
                 gr = r * (1.75 - k * 0.25) + self.level * R * 0.1
@@ -551,13 +587,13 @@ class JarvisApp(tk.Tk):
     def set_state(self, state: str, text: str | None = None) -> None:
         self.state = state
         default = {
-            "idle": 'Say "Jarvis" or press Talk' if self.settings["wake_word"] else "Press Talk or Ctrl+Space to speak",
+            "idle": "Say “Jarvis” or press Talk" if self.settings["wake_word"] else "Press Talk or Ctrl+Space to speak",
             "listening": "Listening…", "thinking": "Working on it…", "speaking": "",
         }
         self.hud_status.configure(text=text if text is not None else default.get(state, ""),
                                   fg={"listening": "#5eead4", "thinking": YELLOW}.get(state, ACCENT))
         if hasattr(self, "talk_btn"):
-            self.talk_btn.configure(text="■  Stop" if state in ("listening", "speaking") else "🎤  Talk to Jarvis")
+            self.talk_btn.configure(text="Stop" if state in ("listening", "speaking") else "Talk to Jarvis")
 
     def reply(self, text: str) -> None:
         self.hud_reply.configure(text=text)
@@ -630,45 +666,72 @@ class JarvisApp(tk.Tk):
     # ---- Dashboard -------------------------------------------------------- #
 
     def build_dashboard(self, page):
-        h = self.header(page, "Dashboard", "Live view of your computer, refreshed every 2 seconds.")
-        self.greeting = label(h, "", 10, ACCENT)
-        self.greeting.pack(anchor="w", pady=(6, 0))
+        # Title row: the screen's answer ("is anything wrong?") under the title, actions on the right.
+        top = tk.Frame(page, bg=BG)
+        top.pack(fill="x", pady=(0, 16))
+        head = tk.Frame(top, bg=BG)
+        head.pack(side="left", fill="x", expand=True)
+        label(head, "Dashboard", 20, TEXT, True).pack(anchor="w")
+        self.finding = label(head, "Checking…", 11, DIM)
+        self.finding.pack(anchor="w", pady=(4, 0))
+        button(top, "Save system report", self.save_report, "accent").pack(side="right")
+        button(top, "Clean temp files", lambda: self.show("Storage")).pack(side="right", padx=8)
+        button(top, "Check internet", self.check_internet).pack(side="right")
 
-        row = panel(page)
-        row.pack(fill="x")
-        inner = tk.Frame(row, bg=PANEL)
-        inner.pack(pady=14)
-        self.g_cpu = Gauge(inner, "CPU")
-        self.g_mem = Gauge(inner, "MEMORY")
-        self.g_disk = Gauge(inner, "MAIN DISK")
-        self.g_bat = Gauge(inner, "BATTERY")
-        for g in (self.g_cpu, self.g_mem, self.g_disk, self.g_bat):
-            g.pack(side="left", padx=18)
+        # Figures: one card split by 1px dividers, label over value, a thin meter under each.
+        strip = panel(page)
+        strip.pack(fill="x")
+        self.kpi = {}
+        for i, (key, name) in enumerate([("cpu", "Processor"), ("mem", "Memory"), ("disk", "Main disk"),
+                                         ("bat", "Battery"), ("net", "Network")]):
+            if i:
+                tk.Frame(strip, bg=LINE, width=1).grid(row=0, column=2 * i - 1, sticky="ns", pady=16)
+            strip.columnconfigure(2 * i, weight=1, uniform="figures")
+            cell = tk.Frame(strip, bg=PANEL)
+            cell.grid(row=0, column=2 * i, sticky="nsew", padx=20, pady=16)
+            label(cell, name, 9, DIM).pack(anchor="w")
+            value = label(cell, "–", 18, TEXT, mono=True)
+            value.pack(anchor="w", pady=(2, 0))
+            sub = label(cell, "", 9, DIM)
+            sub.pack(anchor="w")
+            meter = tk.Canvas(cell, height=3, width=1, bg=PANEL_2, highlightthickness=0)  # width=1: let pack size it
+            if key != "net":
+                meter.pack(fill="x", pady=(10, 0))
+            self.kpi[key] = (value, sub, meter)
 
-        mid = tk.Frame(page, bg=BG)
-        mid.pack(fill="both", expand=True, pady=12)
+        row = tk.Frame(page, bg=BG)
+        row.pack(fill="both", expand=True, pady=(16, 0))
+        busy = panel(row)
+        busy.pack(side="left", fill="both", expand=True, padx=(0, 16))
+        bh = tk.Frame(busy, bg=PANEL)
+        bh.pack(fill="x", padx=16, pady=(14, 6))
+        label(bh, "Busiest programs", 12, TEXT, True).pack(side="left")
+        button(bh, "All processes", lambda: self.show("Processes"), "small").pack(side="right")
+        self.dash_tree = make_table(busy, [("Program", 300), ("CPU %", 90), ("Memory %", 100)], height=12)
 
-        info = panel(mid)
-        info.pack(side="left", fill="both", expand=True, padx=(0, 6))
-        label(info, "SYSTEM", 9, DIM, True).pack(anchor="w", padx=14, pady=(12, 4))
-        self.info_lbl = label(info, "", 10, TEXT, justify="left", anchor="w")
-        self.info_lbl.pack(anchor="w", fill="x", padx=14)
-        label(info, "ALERTS", 9, DIM, True).pack(anchor="w", padx=14, pady=(14, 4))
-        self.alert_lbl = label(info, "", 10, GREEN, justify="left", anchor="w", wraplength=380)
-        self.alert_lbl.pack(anchor="w", fill="x", padx=14, pady=(0, 12))
-
-        top = panel(mid)
-        top.pack(side="left", fill="both", expand=True, padx=(6, 0))
-        label(top, "BUSIEST PROGRAMS", 9, DIM, True).pack(anchor="w", padx=14, pady=(12, 4))
-        self.dash_top = tk.Frame(top, bg=PANEL)
-        self.dash_top.pack(fill="both", expand=True, padx=14, pady=(0, 12))
-
-        actions = tk.Frame(page, bg=BG)
-        actions.pack(fill="x")
-        button(actions, "Save system report", self.save_report, "accent").pack(side="left", padx=(0, 8))
-        button(actions, "Check internet", self.check_internet).pack(side="left", padx=8)
-        button(actions, "Clean temp files", lambda: self.show("Storage")).pack(side="left", padx=8)
-        button(actions, "Ask Jarvis", lambda: self.show("Ask Jarvis")).pack(side="left", padx=8)
+        info = panel(row, width=340)
+        info.pack(side="left", fill="y")
+        info.pack_propagate(False)
+        label(info, "This computer", 12, TEXT, True).pack(anchor="w", padx=16, pady=(14, 10))
+        grid = tk.Frame(info, bg=PANEL)
+        grid.pack(fill="x", padx=16)
+        u = platform.uname()
+        self.info_vals = {}
+        vm = psutil.virtual_memory()
+        facts = [("Name", u.node), ("System", f"{u.system} {u.release}"), ("Chip", u.machine),
+                 ("Cores", f"{psutil.cpu_count(logical=False) or '–'} ({psutil.cpu_count()} threads)"),
+                 ("Memory", jarvis.human(vm.total)),
+                 ("Started", dt.datetime.fromtimestamp(psutil.boot_time()).strftime("%d %b, %H:%M")),
+                 ("Up for", ""), ("Processes", ""), ("Local address", assistant._local_ip() or "–")]
+        for part in jarvis._disks():
+            with contextlib.suppress(OSError):
+                du = psutil.disk_usage(part.mountpoint)
+                name = Path(part.mountpoint).name or part.mountpoint  # "C:\\" or "/" stay as they are
+                facts.append((f"Drive {name}"[:18], f"{jarvis.human(du.free)} free"))
+        for r, (k, v) in enumerate(facts):
+            label(grid, k, 10, DIM).grid(row=r, column=0, sticky="w", pady=4)
+            self.info_vals[k] = label(grid, v[:30], 10, TEXT)
+            self.info_vals[k].grid(row=r, column=1, sticky="w", padx=(16, 0), pady=4)
 
     def refresh_dashboard(self):
         on_dashboard = self.current == "Dashboard"
@@ -701,7 +764,7 @@ class JarvisApp(tk.Tk):
                 nprocs = len(procs)
                 procs.sort(reverse=True)
             alerts = []
-            if cpu > 90: alerts.append("CPU is running very high.")
+            if cpu > 90: alerts.append("The processor is running very high.")
             if vm.percent > 90: alerts.append("Memory is nearly full.")
             for part in jarvis._disks():
                 with contextlib.suppress(OSError):
@@ -709,7 +772,7 @@ class JarvisApp(tk.Tk):
                         alerts.append(f"Disk {part.mountpoint} is over 90% full.")
             if bat and not bat.power_plugged and bat.percent < 20:
                 alerts.append("Battery is low; plug in soon.")
-            return cpu, vm, du, root, bat, up, down, procs[:6], nprocs, alerts
+            return cpu, vm, du, root, bat, up, down, procs[:25], nprocs, alerts
 
         def show(r):
             self.after(2000, self.refresh_dashboard)
@@ -721,33 +784,32 @@ class JarvisApp(tk.Tk):
             self._update_readouts()
             if not on_dashboard:
                 return
-            self.g_cpu.set(cpu, f"{psutil.cpu_count()} threads")
-            self.g_mem.set(vm.percent, f"{jarvis.human(vm.used)} / {jarvis.human(vm.total)}")
-            self.g_disk.set(du.percent, f"{jarvis.human(du.free)} free")
+            def put(key, value, sub, pct=None, load=None):
+                # pct fills the meter; load (default pct) decides whether it needs attention
+                colour = TEXT if pct is None else level_color(pct if load is None else load)
+                v, sl, meter = self.kpi[key]
+                v.configure(text=value, fg=colour)
+                sl.configure(text=sub)
+                meter.delete("all")
+                if pct is not None:
+                    meter.create_rectangle(0, 0, meter.winfo_width() * pct / 100, 3, fill=colour, width=0)
+
+            put("cpu", f"{cpu:.0f}%", f"{psutil.cpu_count()} threads", cpu)
+            put("mem", f"{vm.percent:.0f}%", f"{jarvis.human(vm.used)} of {jarvis.human(vm.total)}", vm.percent)
+            put("disk", f"{du.percent:.0f}%", f"{jarvis.human(du.free)} free on {root}", du.percent)
             if bat:
-                self.g_bat.set(bat.percent, "charging" if bat.power_plugged else "on battery")
+                low = bat.percent < 20 and not bat.power_plugged
+                put("bat", f"{bat.percent:.0f}%", "Charging" if bat.power_plugged else "On battery",
+                    bat.percent, load=95 if low else 0)
             else:
-                self.g_bat.set(None, "no battery")
-            u = platform.uname()
-            self.info_lbl.configure(text=(
-                f"Computer      {u.node}\n"
-                f"System        {u.system} {u.release} ({u.machine})\n"
-                f"Up for        {jarvis.uptime()}\n"
-                f"Network       ↑ {jarvis.human(up)}/s    ↓ {jarvis.human(down)}/s\n"
-                f"Processes     {nprocs}"))
-            self.alert_lbl.configure(text="\n".join(alerts) if alerts else "All systems nominal.",
-                                     fg=YELLOW if alerts else GREEN)
-            hr = dt.datetime.now().hour
-            part = "morning" if hr < 12 else "afternoon" if hr < 18 else "evening"
-            self.greeting.configure(text=f"Good {part}. {dt.datetime.now():%A %d %B, %H:%M}")
-            for w in self.dash_top.winfo_children():
-                w.destroy()
-            for cpu_p, mem_p, name in procs:
-                row = tk.Frame(self.dash_top, bg=PANEL)
-                row.pack(fill="x", pady=2)
-                label(row, name[:28], 10, TEXT, width=24, anchor="w").pack(side="left")
-                label(row, f"CPU {cpu_p:4.1f}%", 9, level_color(cpu_p * 2)).pack(side="left", padx=8)
-                label(row, f"MEM {mem_p:4.1f}%", 9, DIM).pack(side="left")
+                put("bat", "–", "No battery")
+            put("net", f"{jarvis.human(down)}/s", f"down · {jarvis.human(up)}/s up")
+            self.finding.configure(
+                text=" ".join(alerts) if alerts else f"All systems normal. Updated {dt.datetime.now():%H:%M:%S}.",
+                fg=YELLOW if alerts else DIM)
+            self.info_vals["Up for"].configure(text=jarvis.uptime())
+            self.info_vals["Processes"].configure(text=str(nprocs))
+            fill_table(self.dash_tree, [[name[:40], f"{c:.1f}", f"{m:.1f}"] for c, m, name in procs])
 
         self.background(collect, show)
 
@@ -789,13 +851,14 @@ class JarvisApp(tk.Tk):
         self.proc_sort.pack(side="left", padx=8)
         self.proc_sort.bind("<<ComboboxSelected>>", lambda _: self.refresh_processes())
         button(bar, "Force quit", lambda: self.end_process(True), "danger").pack(side="right")
-        button(bar, "End process", lambda: self.end_process(False), "danger").pack(side="right", padx=8)
+        button(bar, "End process (Del)", lambda: self.end_process(False), "danger").pack(side="right", padx=8)
         button(bar, "Refresh", self.refresh_processes).pack(side="right")
 
         box = panel(page)
         box.pack(fill="both", expand=True)
         self.proc_tree = make_table(box, [("PID", 80), ("Name", 230), ("User", 130), ("CPU %", 80),
                                           ("Memory %", 90), ("Memory", 100), ("Status", 100)], height=20)
+        self.proc_tree.bind("<Delete>", lambda _: self.end_process(False))
         self.proc_count = label(page, "", 9, DIM, bg=BG)
         self.proc_count.pack(anchor="w", pady=(6, 0))
         self._proc_auto()
@@ -820,7 +883,7 @@ class JarvisApp(tk.Tk):
                     if query and query not in name.lower() and query != str(i["pid"]):
                         continue
                     rows.append([i["pid"], name, (i["username"] or "").split("\\")[-1],
-                                 round(p.cpu_percent(None) / ncpu, 1), round(i["memory_percent"] or 0, 1),
+                                 round(p.cpu_percent(None) / ncpu, 1), round(float(i["memory_percent"] or 0), 1),
                                  i["memory_info"].rss if i["memory_info"] else 0, i["status"]])
                 except psutil.Error:
                     pass
@@ -876,22 +939,23 @@ class JarvisApp(tk.Tk):
         bar.pack(fill="x", pady=(0, 8))
         button(bar, "Refresh", self.refresh_network).pack(side="left")
         button(bar, "Check internet", self.check_internet).pack(side="left", padx=8)
-        label(bar, "Ping", 10, DIM).pack(side="left", padx=(16, 0))
+        label(bar, "Host", 10, DIM).pack(side="left", padx=(16, 0))
         self.ping_host = tk.StringVar(value="google.com")
         tk.Entry(bar, textvariable=self.ping_host, bg=PANEL_2, fg=TEXT, insertbackground=TEXT, relief="flat",
                  highlightthickness=1, highlightbackground=LINE, highlightcolor=ACCENT, font=(FONT, 10), width=22).pack(side="left", padx=8, ipady=5)
-        button(bar, "Go", lambda: self.run_command(["ping", self.ping_host.get().strip() or "google.com"]),
-               "accent").pack(side="left")
+        button(bar, "Ping", lambda: self.run_command(["ping", self.ping_host.get().strip() or "google.com"])
+               ).pack(side="left")
 
         top = panel(page)
         top.pack(fill="x", pady=(0, 10))
-        label(top, "INTERFACES", 9, DIM, True).pack(anchor="w", padx=12, pady=(10, 4))
+        label(top, "Interfaces", 12, TEXT, True).pack(anchor="w", padx=12, pady=(10, 4))
         self.nic_tree = make_table(top, [("Interface", 160), ("State", 70), ("Addresses", 380),
                                          ("Sent", 100), ("Received", 100)], height=5)
         bottom = panel(page)
         bottom.pack(fill="both", expand=True)
-        label(bottom, "LISTENING PORTS  (exposed = reachable from other machines)", 9, DIM, True).pack(
-            anchor="w", padx=12, pady=(10, 4))
+        label(bottom, "Listening ports", 12, TEXT, True).pack(anchor="w", padx=12, pady=(10, 0))
+        label(bottom, "Exposed means other machines on the network can reach it.", 9, DIM).pack(
+            anchor="w", padx=12, pady=(0, 6))
         self.port_tree = make_table(bottom, [("Port", 80), ("Protocol", 80), ("Address", 160),
                                              ("PID", 80), ("Program", 200), ("Scope", 100)], height=10)
 
@@ -930,6 +994,10 @@ class JarvisApp(tk.Tk):
             nics, ports, note = r
             fill_table(self.nic_tree, nics)
             fill_table(self.port_tree, ports)
+            self.port_tree.tag_configure("exposed", foreground=YELLOW)
+            for item in self.port_tree.get_children():
+                if self.port_tree.item(item, "values")[5] == "exposed":
+                    self.port_tree.item(item, tags=("exposed",))
             if note:
                 messagebox.showinfo("Jarvis", "Listing ports on this system needs administrator rights.\n"
                                               "Restart Jarvis as administrator to see them.")
@@ -942,7 +1010,7 @@ class JarvisApp(tk.Tk):
         self.header(page, "Storage", "Disk space, the biggest files, and old temporary files you can clear.")
         disks = panel(page)
         disks.pack(fill="x", pady=(0, 10))
-        label(disks, "DISKS", 9, DIM, True).pack(anchor="w", padx=12, pady=(10, 4))
+        label(disks, "Disks", 12, TEXT, True).pack(anchor="w", padx=12, pady=(10, 4))
         self.disk_box = tk.Frame(disks, bg=PANEL)
         self.disk_box.pack(fill="x", padx=12, pady=(0, 10))
 
@@ -953,8 +1021,8 @@ class JarvisApp(tk.Tk):
         big.pack(side="left", fill="both", expand=True, padx=(0, 6))
         hdr = tk.Frame(big, bg=PANEL)
         hdr.pack(fill="x", padx=12, pady=(10, 6))
-        label(hdr, "BIGGEST FILES", 9, DIM, True).pack(side="left")
-        button(hdr, "Choose folder…", self.scan_big_files, "accent").pack(side="right")
+        label(hdr, "Biggest files", 12, TEXT, True).pack(side="left")
+        button(hdr, "Choose folder…", self.scan_big_files).pack(side="right")
         self.big_status = label(big, "Pick a folder to find what's taking up space.", 9, DIM)
         self.big_status.pack(anchor="w", padx=12)
         self.big_tree = make_table(big, [("Size", 90), ("File", 420)], height=10)
@@ -963,7 +1031,7 @@ class JarvisApp(tk.Tk):
         clean = panel(cols)
         clean.pack(side="left", fill="both", padx=(6, 0))
         clean.configure(width=320)
-        label(clean, "CLEAN TEMPORARY FILES", 9, DIM, True).pack(anchor="w", padx=14, pady=(10, 6))
+        label(clean, "Clean temporary files", 12, TEXT, True).pack(anchor="w", padx=14, pady=(10, 6))
         label(clean, "Removes temp and cache files that haven't\nbeen touched for a while.", 10, TEXT,
               justify="left").pack(anchor="w", padx=14)
         r = tk.Frame(clean, bg=PANEL)
@@ -1057,7 +1125,7 @@ class JarvisApp(tk.Tk):
         def show(r):
             self._clean_files, total = r
             if not self._clean_files:
-                self.clean_result.configure(text="Nothing to clean. 👍")
+                self.clean_result.configure(text="Nothing to clean.")
                 return
             dirs = ", ".join(str(d) for d in jarvis._temp_dirs())
             self.clean_result.configure(
@@ -1108,6 +1176,9 @@ class JarvisApp(tk.Tk):
         box = panel(page)
         box.pack(fill="both", expand=True)
         self.svc_out = self.make_console(box)
+        self.console_target = self.svc_out
+        self.console_write("Press “Show running services” to list them, then copy a name into the box above "
+                           "to start, stop or restart it.\n", DIM)
 
     def service(self, action):
         name = self.svc_name.get().strip()
@@ -1118,14 +1189,12 @@ class JarvisApp(tk.Tk):
     # ---- Ask Jarvis console ---------------------------------------------- #
 
     def build_console(self, page):
-        self.header(page, "Ask Jarvis", 'Type a request in plain English, e.g. "what\'s eating my ram" or "open ports".')
+        self.header(page, "Ask Jarvis", "Type a request in plain English, for example “what’s eating my RAM?” or “open ports”.")
         chips = tk.Frame(page, bg=BG)
         chips.pack(fill="x", pady=(0, 8))
         for text in ("How's my system?", "What's using memory?", "Open ports", "Is chrome running",
                      "Who is logged in", "Help"):
-            b = button(chips, text, lambda t=text: self.ask(t))
-            b.configure(font=(FONT, 9), padx=10, pady=4)
-            b.pack(side="left", padx=(0, 6))
+            button(chips, text, lambda t=text: self.ask(t), "small").pack(side="left", padx=(0, 6))
         box = panel(page)
         box.pack(fill="both", expand=True)
         self.console = self.make_console(box)
@@ -1146,12 +1215,12 @@ class JarvisApp(tk.Tk):
         frame.pack(fill="both", expand=True, padx=2, pady=2)
         t = tk.Text(frame, bg=PANEL, fg=TEXT, insertbackground=TEXT, relief="flat", font=(MONO, 10),
                     highlightthickness=0, bd=0,
-                    wrap="none", padx=12, pady=10, state="disabled")
+                    wrap="word", padx=12, pady=10, state="disabled")
         sy = ttk.Scrollbar(frame, orient="vertical", command=t.yview)
         t.configure(yscrollcommand=sy.set)
         sy.pack(side="right", fill="y")
         t.pack(side="left", fill="both", expand=True)
-        for tag, col in (("you", GREEN), ("jarvis", ACCENT), ("dim", DIM), ("err", RED)):
+        for tag, col in (("you", DIM), ("jarvis", TEXT), ("dim", DIM), ("err", RED)):
             t.tag_configure(tag, foreground=col)
         return t
 
@@ -1192,7 +1261,8 @@ class JarvisApp(tk.Tk):
             try:
                 self.jarvis.handle(text)
             except Exception as e:
-                self.ctx.say(f"I'm afraid something went wrong, {self.address}: {e}")
+                self.ctx.say(f"I'm afraid something went wrong, {self.address}: {e}. "
+                             "Try again, or use the pages on the left.")
             finally:
                 self.ui(lambda: self.set_state("idle") if self.state == "thinking" else None)
 
