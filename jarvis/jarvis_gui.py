@@ -1301,7 +1301,21 @@ class JarvisApp(tk.Tk):
 
 def main():
     set_dpi_awareness()
-    app = JarvisApp()
+    try:
+        app = JarvisApp()
+    except Exception:  # show startup errors instead of failing silently
+        import traceback
+
+        detail = traceback.format_exc()
+        log = Path(__file__).with_name("jarvis-error.log")
+        with contextlib.suppress(OSError):
+            log.write_text(detail, encoding="utf-8")
+        print(detail, file=sys.stderr)
+        with contextlib.suppress(Exception):
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showerror("Jarvis could not start", f"{detail.strip().splitlines()[-1]}\n\nDetails: {log}")
+        sys.exit(1)
     app.mainloop()
 
 

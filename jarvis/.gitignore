@@ -3,3 +3,4 @@ jarvis-report-*.txt
 build/
 dist/
 *.spec
+jarvis-error.log
