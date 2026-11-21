@@ -224,9 +224,6 @@ class GuiContext(assistant.Context):
     def stop_speaking(self) -> None:
         self.app.speaker.stop()
 
-    def sleep(self) -> None:
-        pass
-
 
 class JarvisApp(tk.Tk):
     def __init__(self):
@@ -321,8 +318,6 @@ class JarvisApp(tk.Tk):
         s.configure("TCombobox", fieldbackground=PANEL_2, background=PANEL_2, foreground=TEXT,
                     arrowcolor=DIM, bordercolor=LINE, lightcolor=PANEL_2, darkcolor=PANEL_2)
         s.map("TCombobox", fieldbackground=[("readonly", PANEL_2)], foreground=[("readonly", TEXT)])
-        s.configure("Horizontal.TProgressbar", troughcolor=PANEL_2, background=ACCENT,
-                    bordercolor=PANEL_2, lightcolor=ACCENT, darkcolor=ACCENT)
 
     def ui(self, fn) -> None:
         """Schedule fn on the Tk thread (safe to call from workers)."""
@@ -520,7 +515,7 @@ class JarvisApp(tk.Tk):
         up, down = L.get("up"), L.get("down")
         net = f"↑ {jarvis.human(up)}/s  ↓ {jarvis.human(down)}/s" if up is not None else "--"
         self.hud.itemconfigure(it["net"], text=f"NETWORK\n{net}")
-        self.hud_clock.configure(text=dt.datetime.now().strftime("%A %d %B  ·  %H:%M:%S"))
+        self.hud_clock.configure(text=dt.datetime.now().strftime("%A %d %B  ·  %H:%M"))
 
     @staticmethod
     def _spark(v) -> str:
@@ -534,7 +529,8 @@ class JarvisApp(tk.Tk):
 
     def _animate(self):
         it = self._hud_items
-        if it and self.current == "Jarvis":
+        active = it and self.current == "Jarvis" and self.wm_state() != "iconic"
+        if active:
             speed = {"idle": 1.0, "listening": 2.6, "thinking": 4.5, "speaking": 1.6}.get(self.state, 1)
             self.angle += speed
             self.level += (self.level_target - self.level) * 0.35
@@ -550,9 +546,7 @@ class JarvisApp(tk.Tk):
             self.hud.coords(it["core"], cx - r, cy - r, cx + r, cy + r)
             core = {"idle": "#0891b2", "listening": "#0d9488", "thinking": "#b45309", "speaking": "#06b6d4"}
             self.hud.itemconfigure(it["core"], fill=core.get(self.state, "#0891b2"))
-            if int(self.angle) % 15 == 0:
-                self._update_readouts()
-        self.after(33, self._animate)
+        self.after(33 if active else 300, self._animate)  # ~30 fps only while visible
 
     def set_state(self, state: str, text: str | None = None) -> None:
         self.state = state
@@ -677,6 +671,8 @@ class JarvisApp(tk.Tk):
         button(actions, "Ask Jarvis", lambda: self.show("Ask Jarvis")).pack(side="left", padx=8)
 
     def refresh_dashboard(self):
+        on_dashboard = self.current == "Dashboard"
+
         def collect():
             try:
                 return _collect()
@@ -696,14 +692,14 @@ class JarvisApp(tk.Tk):
             dt_s = max(now - t0, 0.001)
             up = (net.bytes_sent - prev.bytes_sent) / dt_s
             down = (net.bytes_recv - prev.bytes_recv) / dt_s
-            procs = []
-            for p, info in jarvis.processes(["name", "memory_percent"]):
-                try:
-                    procs.append((p.cpu_percent(None) / (psutil.cpu_count() or 1), info["memory_percent"] or 0,
-                                  info["name"] or "?"))
-                except psutil.Error:
-                    pass
-            procs.sort(reverse=True)
+            procs, nprocs = [], 0
+            if on_dashboard:  # the full process scan is the expensive part; skip it when not shown
+                ncpu = psutil.cpu_count() or 1
+                for p, info in jarvis.processes(["name", "memory_percent"]):
+                    with contextlib.suppress(psutil.Error):
+                        procs.append((p.cpu_percent(None) / ncpu, info["memory_percent"] or 0, info["name"] or "?"))
+                nprocs = len(procs)
+                procs.sort(reverse=True)
             alerts = []
             if cpu > 90: alerts.append("CPU is running very high.")
             if vm.percent > 90: alerts.append("Memory is nearly full.")
@@ -713,15 +709,18 @@ class JarvisApp(tk.Tk):
                         alerts.append(f"Disk {part.mountpoint} is over 90% full.")
             if bat and not bat.power_plugged and bat.percent < 20:
                 alerts.append("Battery is low; plug in soon.")
-            return cpu, vm, du, root, bat, up, down, procs[:6], alerts
+            return cpu, vm, du, root, bat, up, down, procs[:6], nprocs, alerts
 
         def show(r):
             self.after(2000, self.refresh_dashboard)
             if r is None:
                 return
-            cpu, vm, du, root, bat, up, down, procs, alerts = r
+            cpu, vm, du, root, bat, up, down, procs, nprocs, alerts = r
             self.latest = {"cpu": cpu, "mem": vm.percent, "disk": du.percent, "up": up, "down": down,
                            "bat": bat.percent if bat else None, "alerts": alerts}
+            self._update_readouts()
+            if not on_dashboard:
+                return
             self.g_cpu.set(cpu, f"{psutil.cpu_count()} threads")
             self.g_mem.set(vm.percent, f"{jarvis.human(vm.used)} / {jarvis.human(vm.total)}")
             self.g_disk.set(du.percent, f"{jarvis.human(du.free)} free")
@@ -735,7 +734,7 @@ class JarvisApp(tk.Tk):
                 f"System        {u.system} {u.release} ({u.machine})\n"
                 f"Up for        {jarvis.uptime()}\n"
                 f"Network       ↑ {jarvis.human(up)}/s    ↓ {jarvis.human(down)}/s\n"
-                f"Processes     {len(psutil.pids())}"))
+                f"Processes     {nprocs}"))
             self.alert_lbl.configure(text="\n".join(alerts) if alerts else "All systems nominal.",
                                      fg=YELLOW if alerts else GREEN)
             hr = dt.datetime.now().hour
@@ -959,6 +958,7 @@ class JarvisApp(tk.Tk):
         self.big_status = label(big, "Pick a folder to find what's taking up space.", 9, DIM)
         self.big_status.pack(anchor="w", padx=12)
         self.big_tree = make_table(big, [("Size", 90), ("File", 420)], height=10)
+        self.big_tree.bind("<Double-1>", self.open_containing_folder)
 
         clean = panel(cols)
         clean.pack(side="left", fill="both", padx=(6, 0))
@@ -1022,7 +1022,6 @@ class JarvisApp(tk.Tk):
             fill_table(self.big_tree, [[jarvis.human(s), p] for s, p in found])
             self.big_status.configure(text=f"Scanned {count:,} files in {folder}. Double-click to open its folder.")
 
-        self.big_tree.bind("<Double-1>", self.open_containing_folder)
         self.background(work, show)
 
     def open_containing_folder(self, _event):

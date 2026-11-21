@@ -47,9 +47,6 @@ class Context:
         args = jarvis.build_parser().parse_args(argv)
         args.func(args)
 
-    def sleep(self) -> None:
-        pass
-
     def stop_speaking(self) -> None:
         pass
 
@@ -247,7 +244,6 @@ class Assistant:
     def goodbye(self, m):
         self.say(random.choice([f"Very good, {self.sir}. I'll be here if you need me.",
                                 f"Standing by, {self.sir}."]))
-        self.ctx.sleep()
 
     # ---- system health --------------------------------------------------- #
 

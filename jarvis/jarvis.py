@@ -61,10 +61,6 @@ class Voice:
             except Exception as e:
                 print(c(f"Voice unavailable ({e}). Continuing silently.", YELLOW))
 
-    @property
-    def engine(self):
-        return self.speaker
-
     def say(self, text: str) -> None:
         print(c("Jarvis: ", CYAN + ";" + BOLD) + text)
         if self.speaker:
