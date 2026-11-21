@@ -1,0 +1,3 @@
+psutil>=5.9
+# Optional: spoken replies with --voice
+# pyttsx3>=2.90
