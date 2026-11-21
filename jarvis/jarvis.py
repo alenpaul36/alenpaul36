@@ -6,8 +6,9 @@ Run it with no arguments for an interactive prompt where you can type
 plain requests ("how's my system?", "top memory", "kill 1234"), or pass
 a command directly:  python jarvis.py status
 
-Works on Linux, macOS and Windows. Needs `psutil`; text-to-speech is
-used when `pyttsx3` is installed and --voice is given.
+Works on Linux, macOS and Windows. Needs `psutil`; add --voice to hear
+replies in a British male voice. For the full voice assistant with a
+microphone, run jarvis_gui.py instead.
 """
 
 from __future__ import annotations
@@ -48,21 +49,26 @@ CYAN, GREEN, YELLOW, RED, DIM, BOLD = "36", "32", "33", "31", "2", "1"
 
 
 class Voice:
+    """Prints replies and, with --voice, speaks them in a British male voice (see voice.py)."""
+
     def __init__(self, enabled: bool):
-        self.engine = None
+        self.speaker = None
         if enabled:
             try:
-                import pyttsx3
+                from voice import Speaker
 
-                self.engine = pyttsx3.init()
-            except Exception:
-                print(c("Voice unavailable (pip install pyttsx3). Continuing silently.", YELLOW))
+                self.speaker = Speaker()
+            except Exception as e:
+                print(c(f"Voice unavailable ({e}). Continuing silently.", YELLOW))
+
+    @property
+    def engine(self):
+        return self.speaker
 
     def say(self, text: str) -> None:
         print(c("Jarvis: ", CYAN + ";" + BOLD) + text)
-        if self.engine:
-            self.engine.say(text)
-            self.engine.runAndWait()
+        if self.speaker:
+            self.speaker.say(text)
 
 
 VOICE = Voice(False)
@@ -88,6 +94,21 @@ def table(rows: list[list], headers: list[str]) -> None:
     print(c("  ".join(h.ljust(w) for h, w in zip(headers, widths)), BOLD))
     for r in rows:
         print("  ".join(v.ljust(w) for v, w in zip(r, widths)))
+
+
+def sh(cmd, shell: bool = False) -> int:
+    """Run a command and print its output, so it also shows up in the GUI."""
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # no flashing console on Windows
+    try:
+        r = subprocess.run(cmd, shell=shell, capture_output=True, text=True, errors="replace",
+                           stdin=subprocess.DEVNULL, creationflags=flags)
+    except FileNotFoundError as e:
+        print(c(f"  {e}", RED))
+        return 127
+    for out in (r.stdout, r.stderr):
+        if out.strip():
+            print(out.rstrip())
+    return r.returncode
 
 
 def confirm(question: str, assume_yes: bool = False) -> bool:
@@ -185,20 +206,34 @@ def _temperatures() -> str:
     return "  ".join(parts[:4])
 
 
+def processes(attrs: list[str]) -> list[tuple]:
+    """(process, info) pairs, with info read immediately.
+
+    psutil reuses Process objects between calls, so `p.info` from process_iter(attrs)
+    can be overwritten by another thread (the GUI refreshes several views at once).
+    """
+    out = []
+    for p in psutil.process_iter():
+        try:
+            out.append((p, p.as_dict(attrs=attrs, ad_value=None)))
+        except psutil.Error:
+            pass
+    return out
+
+
 def cmd_top(args) -> None:
     """Top processes by CPU or memory."""
-    procs = list(psutil.process_iter(["pid", "name", "username", "memory_info", "memory_percent"]))
-    for p in procs:
+    procs = processes(["pid", "name", "username", "memory_info", "memory_percent"])
+    for p, _ in procs:
         try:
             p.cpu_percent(None)
         except psutil.Error:
             pass
     time.sleep(0.5)
     rows = []
-    for p in procs:
+    for p, info in procs:
         try:
             cpu = p.cpu_percent(None)
-            info = p.info
             rows.append((cpu, info["memory_percent"] or 0, info["pid"], info["name"] or "?",
                          (info["username"] or "").split("\\")[-1], info["memory_info"].rss if info["memory_info"] else 0))
         except psutil.Error:
@@ -213,13 +248,13 @@ def cmd_find(args) -> None:
     """Find processes whose name or command line matches."""
     pat = args.name.lower()
     rows = []
-    for p in psutil.process_iter(["pid", "name", "cmdline", "status"]):
+    for p, info in processes(["pid", "name", "cmdline", "status"]):
         if p.pid in (os.getpid(), os.getppid()):
             continue
         try:
-            cmd = " ".join(p.info["cmdline"] or [])
-            if pat in (p.info["name"] or "").lower() or pat in cmd.lower():
-                rows.append([p.info["pid"], p.info["name"], p.info["status"], cmd[:70]])
+            cmd = " ".join(info["cmdline"] or [])
+            if pat in (info["name"] or "").lower() or pat in cmd.lower():
+                rows.append([info["pid"], info["name"], info["status"], cmd[:70]])
         except psutil.Error:
             continue
     if rows:
@@ -237,8 +272,8 @@ def cmd_kill(args) -> None:
         except psutil.NoSuchProcess:
             return VOICE.say(f"No process with PID {args.target}.")
     else:
-        for p in psutil.process_iter(["name"]):
-            name = (p.info["name"] or "").lower()
+        for p, info in processes(["name"]):
+            name = (info["name"] or "").lower()
             if args.target.lower() in (name, name.removesuffix(".exe")):
                 targets.append(p)
     if not targets:
@@ -315,7 +350,7 @@ def cmd_ping(args) -> None:
     """Check whether a host is reachable."""
     flag = "-n" if os.name == "nt" else "-c"
     if shutil.which("ping"):
-        subprocess.run(["ping", flag, str(args.count), args.host])
+        sh(["ping", flag, str(args.count), args.host])
     else:
         start = time.time()
         try:
@@ -411,9 +446,9 @@ def cmd_services(args) -> None:
         return table(rows, ["NAME", "STATUS", "START", "DESCRIPTION"])
     if shutil.which("systemctl"):
         state = [] if args.all else ["--state=running"]
-        subprocess.run(["systemctl", "list-units", "--type=service", "--no-pager", *state])
+        sh(["systemctl", "list-units", "--type=service", "--no-pager", *state])
     elif shutil.which("launchctl"):
-        subprocess.run(["launchctl", "list"])
+        sh(["launchctl", "list"])
     else:
         VOICE.say("I don't recognise this system's service manager.")
 
@@ -427,14 +462,16 @@ def cmd_service(args) -> None:
     elif shutil.which("systemctl"):
         cmd = ["systemctl", args.action, args.name]
         if os.geteuid() != 0:
-            cmd = ["sudo", *cmd]
+            # pkexec shows a graphical password prompt when there's no terminal (the GUI app)
+            use_gui = not sys.stdin.isatty() and shutil.which("pkexec")
+            cmd = ["pkexec" if use_gui else "sudo", *cmd]
     elif shutil.which("brew"):
         cmd = ["brew", "services", args.action, args.name]
     else:
         return VOICE.say("I don't know how to manage services here.")
     if confirm(f"Run: {' '.join(cmd)} ?", args.yes):
-        r = subprocess.run(cmd)
-        VOICE.say(f"{args.name} {args.action} {'done' if r.returncode == 0 else 'failed'}.")
+        rc = sh(cmd)
+        VOICE.say(f"{args.name} {args.action} {'done' if rc == 0 else 'failed'}.")
 
 
 def cmd_watch(args) -> None:
@@ -453,10 +490,10 @@ def cmd_watch(args) -> None:
                 print(f"  CPU{i:<3} {bar(pct, 30)}")
             print(f"\n  Memory {bar(psutil.virtual_memory().percent, 30)}")
             print(f"  Net    ↑ {human(up)}/s   ↓ {human(down)}/s\n")
-            top = sorted(psutil.process_iter(["pid", "name", "cpu_percent"]),
-                         key=lambda p: p.info["cpu_percent"] or 0, reverse=True)[:5]
-            for p in top:
-                print(c(f"  {p.info['pid']:>7}  {(p.info['name'] or '?')[:30]:<30} {p.info['cpu_percent'] or 0:5.1f}%", DIM))
+            top = sorted((i for _, i in processes(["pid", "name", "cpu_percent"])),
+                         key=lambda i: i["cpu_percent"] or 0, reverse=True)[:5]
+            for i in top:
+                print(c(f"  {i['pid']:>7}  {(i['name'] or '?')[:30]:<30} {i['cpu_percent'] or 0:5.1f}%", DIM))
     except KeyboardInterrupt:
         print()
 
@@ -465,8 +502,8 @@ def cmd_run(args) -> None:
     """Run a shell command (asks first)."""
     command = " ".join(args.command)
     if confirm(f"Run `{command}`?", args.yes):
-        r = subprocess.run(command, shell=True)
-        VOICE.say("Done." if r.returncode == 0 else f"That exited with code {r.returncode}.")
+        rc = sh(command, shell=True)
+        VOICE.say("Done." if rc == 0 else f"That exited with code {rc}.")
 
 
 def cmd_report(args) -> None:
@@ -502,7 +539,7 @@ def cmd_report(args) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="jarvis", description="Jarvis - manage your system.")
-    p.add_argument("--voice", action="store_true", help="speak replies (needs pyttsx3)")
+    p.add_argument("--voice", action="store_true", help="speak replies in a British male voice")
     sub = p.add_subparsers(dest="cmd")
 
     def add(name, fn, *aliases):

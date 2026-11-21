@@ -1,0 +1,93 @@
+name: Build Jarvis apps
+
+# Builds a double-click app for Windows, macOS and Linux whenever the Jarvis code
+# changes. Download them from the run's "Artifacts" section on the Actions tab.
+# Pushing a tag like jarvis-v1.0 also attaches them to a GitHub release.
+
+on:
+  push:
+    paths:
+      - "jarvis/**"
+      - ".github/workflows/build-jarvis.yml"
+    tags:
+      - "jarvis-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Jarvis-Windows
+            driver: sapi5
+          - os: macos-latest
+            name: Jarvis-macOS
+            driver: nsss
+          - os: ubuntu-22.04
+            name: Jarvis-Linux
+            driver: espeak
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: jarvis
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system audio library (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Check the code imports
+        run: python -c "import jarvis, assistant, voice; jarvis.build_parser()"
+
+      - name: Build
+        run: >
+          pyinstaller --noconfirm --windowed --name Jarvis
+          ${{ runner.os != 'macOS' && '--onefile' || '' }}
+          --collect-data speech_recognition
+          --collect-all _sounddevice_data
+          --hidden-import pyttsx3.drivers
+          --hidden-import pyttsx3.drivers.${{ matrix.driver }}
+          jarvis_gui.py
+
+      - name: Allow microphone use and sign (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          plutil -insert NSMicrophoneUsageDescription -string "Jarvis listens for your voice commands." dist/Jarvis.app/Contents/Info.plist
+          codesign --force --deep --sign - dist/Jarvis.app
+          cd dist && ditto -c -k --keepParent Jarvis.app Jarvis-macOS.zip
+
+      - name: Collect files
+        run: |
+          mkdir -p out
+          case "${{ runner.os }}" in
+            Windows) cp dist/Jarvis.exe out/Jarvis.exe ;;
+            macOS)   cp dist/Jarvis-macOS.zip out/ ;;
+            Linux)   cp dist/Jarvis out/Jarvis-Linux && chmod +x out/Jarvis-Linux ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: jarvis/out/*
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/jarvis-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: jarvis/out/*

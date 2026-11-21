@@ -1,3 +1,9 @@
 psutil>=5.9
-# Optional: spoken replies with --voice
-# pyttsx3>=2.90
+# Voice: British male neural voice, microphone and speech recognition
+edge-tts>=7.0
+miniaudio>=1.59
+sounddevice>=0.4.6
+numpy>=1.24
+SpeechRecognition>=3.10
+# Offline fallback voice
+pyttsx3>=2.90
